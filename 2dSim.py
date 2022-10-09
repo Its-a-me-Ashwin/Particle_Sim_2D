@@ -4,11 +4,12 @@ import glob
 import numpy as np
 
 class Box:
-    def __init__(self,size=[256,256]):
+    def __init__(self,size=[256,256],acc=[0.0,0.0]):
         self.shape = size
         self.points = list()
-        self.max = 10
+        self.max = 50
         self._dt = 0.1
+        self.accl = [0,25.0]
         self.color = [255,255,255]
         if not os.path.exists('./tempVid'):
             os.makedirs('./tempVid')
@@ -22,14 +23,15 @@ class Box:
     def _update(self,draw=False,debug=False):
         hits = self._handleColisionNavie()
         for p in self.points:
-            p._update(self._dt)
+            p._update(self._dt,accl=self.accl)
             if debug:
                 print(p)
         if draw:
             self.canvas(hits)
 
     def _handleColision(self):
-        return
+        ## Solves tunneling
+        pass
 
     def _checkIfHit(self,i,j):
         return np.linalg.norm(self.points[i].position-self.points[j].position) <= 4
@@ -100,7 +102,7 @@ class Box:
         
 class Point:
     def __init__(self):
-        # Equal mass
+        self.mass = np.random.rand(2) * 10
         self.position = np.random.rand(2) * 256
         self.velocity = np.random.rand(2) * 50
         self.radius = 2
@@ -110,8 +112,7 @@ class Point:
         v = "Vel:" + str(self.velocity[0]) +" : "+ str(self.velocity[1]) + "\n"
         return p + v
 
-    def _update(self,dt):
-        # Ignore size of particle
+    def _simpleColision(self,dt):
         if self.position[0] < 0:
             self.position[0] = 0.0
             self.velocity[0] *= -1.0
@@ -125,6 +126,37 @@ class Point:
             self.position[1] = 256.0
             self.velocity[1] *= -1.0
         self.position += self.velocity*dt
+
+    def _complexColision(self,dt):
+        ## Avoidstunneling for single collisions
+        position = self.position + self.velocity*dt
+        tc = 0.0
+        if position[0] < 0:
+            tc = (self.radius - position[0]) / (self.position[0] - position[0])
+            self.velocity[0] *= -1.0
+        elif self.position[0] > 256:
+            tc = (256 + self.radius - position[0]) / (self.position[0] - position[0])
+            self.velocity[0] *= -1.0
+        if self.position[1] < 0:
+            tc = (self.radius - position[1]) / (self.position[1] - position[1])
+            self.velocity[1] *= -1.0
+        elif self.position[1] > 256:
+            tc = (256 + self.radius - position[1]) / (self.position[1] - position[1])
+            self.velocity[1] *= -1.0
+        print(position[0],self.position[0],tc)
+        ta = (1-tc)*dt
+        if ta > dt: ta = dt
+        self.position += self.velocity*ta
+
+
+        
+
+    def _update(self,dt,accl=[0.0,0.0]):
+        # Ignore size of particle
+        self.velocity[0] += accl[0]*dt
+        self.velocity[1] += accl[1]*dt
+        self._simpleColision(dt)
+        #self._complexColision(dt)
 
 
 if __name__ == '__main__':
@@ -155,5 +187,6 @@ if __name__ == '__main__':
     B.addPoint(P41)
     B.addPoint(P51)
     B.addPoint(P61)
-    for i in range(200):
+    for i in range(500):
         B._update(draw=True)
+    B._convertToVid()
