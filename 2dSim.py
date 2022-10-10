@@ -29,12 +29,41 @@ class Box:
         if draw:
             self.canvas(hits)
 
-    def _handleColision(self):
-        ## Solves tunneling
+    def _handleColisionSweepAndPrube(self):
+        sorted_list = sorted(self.points, key=lambda x: x.position[0])
+        active = []
+        range_min, range_max = 0.0, 0.0
+        for idx in range(sorted_list):
+            if len(active) == 0:
+                active.append(sorted_list[idx])
+            else:
+                if sorted_list[idx].position[0] < range_max and sorted_list[idx].position[0] > range_min:
+                    ## Posible collision
+                    for i in range(len(active)-1):
+                        for j in range(1+i,len(active)):
+                            if Point._checkIfHit(active[i],active[j]):
+                                pass
+                else:
+                    ## Remove from list
+                    active = []
+            
+            if len(active) == 0:
+                range_min = 0.0
+                range_max = 0.0
+            if len(active) == 1:
+                range_min = active[0].position[0] - active[0].radius
+                range_max = active[0].position[0] + active[0].radius
+            else: 
+                for a in active:
+                    if range_min > a.position[0] - a.radius:
+                        range_min = a.position[0] - a.radius
+                    if range_max < a.position[0] + a.radius:
+                        range_max = a.position[0] + a.radius
+
         pass
 
     def _checkIfHit(self,i,j):
-        return np.linalg.norm(self.points[i].position-self.points[j].position) <= 4
+        return np.linalg.norm(self.points[i].position-self.points[j].position) <= self.points[i].radius + self.points[j].radius
     
     def _handleColisionNavie(self):
         hits = []
@@ -42,7 +71,14 @@ class Box:
             for j in range(1+i,len(self.points)):
                 if self._checkIfHit(i,j):
                     # Oh no math
-                    self.points[i].velocity,self.points[j].velocity = self.points[j].velocity,self.points[i].velocity 
+                    m21 = (2 * self.points[i].mass) / (self.points[i].mass + self.points[j].mass)
+                    m22 = (2 * self.points[j].mass) / (self.points[i].mass + self.points[j].mass)
+
+                    m11 = (self.points[i].mass - self.points[j].mass) / (self.points[i].mass + self.points[j].mass)
+
+                    self.points[i].velocity = m11*self.points[i].velocity + m22*self.points[j].velocity
+                    self.points[j].velocity = (-m11)*self.points[j].velocity + m21*self.points[i].velocity
+                    #self.points[i].velocity,self.points[j].velocity = self.points[j].velocity,self.points[i].velocity 
                     hits.extend([i,j])
         return hits
     
@@ -111,6 +147,10 @@ class Point:
         p = "Pos:" + str(self.position[0]) +" : "+ str(self.position[1])
         v = "Vel:" + str(self.velocity[0]) +" : "+ str(self.velocity[1]) + "\n"
         return p + v
+
+    @classmethod
+    def _checkIfHit(self,i,j):
+        return np.linalg.norm(i.position-j.position) <= i.radius + j.radius
 
     def _simpleColision(self,dt):
         if self.position[0] < 0:
